@@ -1,7 +1,22 @@
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+
+# Data file that stores user progress
+data.json
+
+# Virtual environments
+env/
+venv/
+.venv/
+
+# VS Code config
+.vscode/
+
+# OS-specific
 .DS_Store
-.env
-.venv
+Thumbs.db
+
+# Logs and other temp files
+*.log
+*.bak
