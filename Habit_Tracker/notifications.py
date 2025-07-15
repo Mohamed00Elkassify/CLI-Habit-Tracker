@@ -1,5 +1,6 @@
 import time
 import schedule
+import threading
 from plyer import notification
 from datetime import datetime
 from tracker import HabitTracker
@@ -7,6 +8,7 @@ from tracker import HabitTracker
 class HabitNotifications:
     def __init__(self, data_file='habits.json'):
         self.tracker = HabitTracker(data_file)
+        self.running = False
     
     def send_notification(self, habit_name):
         """Send a desktop notification for the given habit."""
@@ -20,15 +22,18 @@ class HabitNotifications:
     
     def check_habit_status(self, habit_name):
         """Check if habit is done today and send notification if not."""
+        # Reload data to get latest updates
+        self.tracker.load_data()
         today = datetime.now().strftime('%Y-%m-%d')
         
-        # Get habit records from tracker
         if habit_name in self.tracker.data:
             if today not in self.tracker.data[habit_name]:
+                # Not done today - send notification
                 self.send_notification(habit_name)
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] {habit_name} not completed today")
             else:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ {habit_name} already completed")
+                # Already done today - skip notification
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ {habit_name} already completed - skipping notification")
         else:
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Habit '{habit_name}' not found")
     
@@ -37,7 +42,6 @@ class HabitNotifications:
         scheduled_count = 0
         
         for habit_name in self.tracker.data.keys():
-            # Schedule notifications every 2 hours for each habit
             schedule.every(2).hours.do(self.check_habit_status, habit_name)
             print(f"📅 Scheduled '{habit_name}' reminder every 2 hours")
             scheduled_count += 1
@@ -48,45 +52,52 @@ class HabitNotifications:
         return True
     
     def run_scheduler(self):
-        """Run the scheduler in a loop."""
-        print("\n🔄 Scheduler running... (Press Ctrl+C to stop)")
-        print("Current scheduled jobs:")
-        for job in schedule.jobs:
-            print(f"   - {job}")
+        """Run scheduler in background - user can close terminal."""
+        print("\n✅ Starting background notifications...")
+        print("🔔 You will get desktop notifications every 2 hours")
+        print("🛑 Only incomplete habits will send notifications")
+        
+        self.running = True
+        
+        # Background worker function
+        def background_worker():
+            while self.running:
+                schedule.run_pending()
+                time.sleep(60)  # Check every minute
+        
+        # Start background thread
+        thread = threading.Thread(target=background_worker)
+        thread.daemon = True  # Dies when main program dies
+        thread.start()
         
         try:
-            while True:
-                schedule.run_pending()
-                time.sleep(60)  # Check every minute instead of every second
+            # Keep main program alive
+            while self.running:
+                time.sleep(1)
         except KeyboardInterrupt:
-            print("\n👋 Stopping Habit Tracker Notifications")
-    
-    def list_notifications(self):
-        """List all scheduled notifications."""
-        print("\n📋 Current Notification Schedule:")
-        for habit in self.tracker.data.keys():
-            print(f"   - {habit}: Every 2 hours")
+            print("\n👋 Stopping notifications...")
+            self.running = False
 
 def main():
-    """Entry point for the Habit Tracker Notifications System."""
-    print("🚀 Habit Tracker Notifications System")
+    """Simple entry point - always runs in background."""
+    print("🚀 Habit Tracker Notifications")
     
-    # Initialize with existing habits
     notifier = HabitNotifications('habits.json')
     
-    # Check if there are any habits
     if not notifier.tracker.data:
-        print("❌ No habits found. Please add habits using the Habit Tracker.")
+        print("❌ No habits found. Add some habits first!")
         return
     
-    print(f"📊 Loaded {len(notifier.tracker.data)} habits")
-    notifier.list_notifications()
+    print(f"📊 Found {len(notifier.tracker.data)} habits")
     
-    # Schedule reminders
+    # Show what will be scheduled
+    print("\n📋 Will send notifications for:")
+    for habit in notifier.tracker.data.keys():
+        print(f"   - {habit}")
+    
+    # Schedule and run in background
     if notifier.schedule_habit_reminders():
         notifier.run_scheduler()
-    else:
-        print("No notifications to schedule. Exiting.")
 
 if __name__ == "__main__":
     main()
